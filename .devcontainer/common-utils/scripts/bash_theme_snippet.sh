@@ -28,18 +28,32 @@ export PROMPT_DIRTRIM=4
 if [[ "$TERM" == "xterm" ]]; then
     # Function to set the terminal title to the current command
     preexec() {
+        __current_command=""
         local cmd="${BASH_COMMAND}"
         echo -ne "\033]0;${USER}@${HOSTNAME}: ${cmd}\007"
+
+        echo -ne "\e]463;A;${cmd}\a" # Command text
+        echo -ne "\e]463;B\a" # Comamnd started
     }
 
     # Function to reset the terminal title to the shell type after the command is executed
     precmd() {
+        RES="$?"
         echo -ne "\033]0;${USER}@${HOSTNAME}: ${SHELL}\007"
+
+        if [ -z "$__current_command" ]; then
+            echo -ne "\e]463;C\a" # Command ended (no exit code - actually no command)
+        else
+            echo -ne "\e]463;C;$RES\a" # Command ended
+        fi
+
+        # Make sure  downstream hooks get the correct exit code
+        return $RES
     }
 
     # Trap DEBUG signal to call preexec before each command
     trap 'preexec' DEBUG
 
-    # Append to PROMPT_COMMAND to call precmd before displaying the prompt
-    PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }precmd"
+    # Prepend to PROMPT_COMMAND to call precmd before displaying the prompt
+    PROMPT_COMMAND="precmd${PROMPT_COMMAND:+;$PROMPT_COMMAND }"
 fi
